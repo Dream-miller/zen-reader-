@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>詩詞電子書閱讀器</title>
+    
+    <!-- 引入 Tailwind CSS 框架 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 FontAwesome 圖示庫 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- 自訂樣式：隱藏滾動條 -->
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col font-sans text-slate-800 overflow-hidden">
+
+    <header class="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex items-center justify-between shadow-sm shrink-0 z-50 relative">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-700 p-2 sm:p-2.5 rounded-xl shadow-md shadow-blue-500/20">
+                <i class="fa-solid fa-book-open text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="text-lg sm:text-xl font-black text-slate-800 tracking-tight leading-none">詩詞電子書</h1>
+                <p class="text-[10px] font-bold text-blue-700 tracking-widest mt-1 uppercase">Zen Reader</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-8 py-4 sm:py-6 flex flex-col min-h-0">
+        <div class="bg-slate-900 rounded-[1.5rem] sm:rounded-[2rem] shadow-2xl flex-1 flex flex-col overflow-hidden relative border border-slate-800">
+            
+            <!-- 雙層導覽：第一層 - 總綱 (主題鈕) -->
+            <div id="nav-tier-1" class="flex overflow-x-auto gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-white/5 bg-slate-950/80 backdrop-blur-xl z-30 items-center no-scrollbar shrink-0">
+                <!-- 由 JS 動態生成 -->
+            </div>
+
+            <!-- 雙層導覽：第二層 - 章節按鈕 -->
+            <div id="nav-tier-2" class="flex overflow-x-auto gap-2 px-4 sm:px-6 py-2 sm:py-3 border-b border-white/5 bg-slate-900/80 backdrop-blur-md z-20 items-center no-scrollbar shrink-0">
+                <!-- 由 JS 動態生成 -->
+            </div>
+
+            <div class="flex-1 flex flex-col relative overflow-hidden bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-black">
+                
+                <!-- 上一頁按鈕 -->
+                <button id="btn-prev" class="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 z-20 p-3 sm:p-4 rounded-full bg-slate-800/30 backdrop-blur-md text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-10 disabled:cursor-not-allowed transition-all hover:scale-110 active:scale-95 flex items-center justify-center">
+                    <i class="fa-solid fa-chevron-left text-xl sm:text-2xl"></i>
+                </button>
+
+                <!-- Zoom 控制 Bar -->
+                <div class="absolute top-4 right-4 sm:right-8 z-30 bg-slate-800/60 backdrop-blur-md rounded-full px-4 py-2 flex items-center gap-3 border border-slate-600/50 shadow-lg">
+                    <button id="btn-zoom-out" class="text-slate-400 hover:text-white transition-colors" title="縮小"><i class="fa-solid fa-minus"></i></button>
+                    <input type="range" id="zoom-slider" min="50" max="200" value="100" class="w-24 sm:w-32 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer">
+                    <button id="btn-zoom-in" class="text-slate-400 hover:text-white transition-colors" title="放大"><i class="fa-solid fa-plus"></i></button>
+                    <div class="w-px h-4 bg-slate-600 mx-1"></div>
+                    <button id="btn-zoom-auto" class="text-xs font-bold text-amber-400 hover:text-amber-300 tracking-wider transition-colors" title="自動適合頁面">AUTO</button>
+                </div>
+
+                <!-- 內容容器：加入 overflow-y-auto 與 scroll-wrapper 確保放大後能完美滾動 -->
+                <div id="reader-container" class="w-full h-full px-4 sm:px-12 transition-all duration-500 ease-out overflow-y-auto no-scrollbar relative">
+                    <!-- scroll-wrapper 負責在小字體時置中，大字體時解除置中讓頂部不被裁切 -->
+                    <div id="scroll-wrapper" class="min-h-full w-full flex flex-col items-center justify-center py-20 transition-all duration-300">
+                        <div id="reader-content" class="text-slate-300 whitespace-pre-wrap font-serif font-light tracking-[0.1em] sm:tracking-[0.15em] text-center leading-[2] sm:leading-[2.5] text-[clamp(20px,4.5vmin,36px)] transition-transform duration-300 origin-top max-w-[1200px] w-full"></div>
+                    </div>
+                </div>
+
+                <!-- 下一頁按鈕 -->
+                <button id="btn-next" class="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 z-20 p-3 sm:p-4 rounded-full bg-slate-800/30 backdrop-blur-md text-slate-400 hover:text-amber-400 hover:bg-slate-800/80 disabled:opacity-10 disabled:cursor-not-allowed transition-all hover:scale-110 active:scale-95 flex items-center justify-center">
+                    <i class="fa-solid fa-chevron-right text-xl sm:text-2xl"></i>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const bookDatabase = [
+            // ================= 【詩文版】卷一 悟者篇 =================
+            { section: '【詩文版】卷一 悟者篇', chapter: '1.江山代有悟者出 ‧ 總綱', text: '濛濛煙雨 鎖江山，\n萬里江山 朗朗在。\n江山代有 悟者出，\n一葉扁舟知所如。' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '江山代有悟者出 ‧ 第一章：頂天立地', text: '頭頂 無垠天，\n腳踏 方寸地。\n上天下地 頂天立地 站直立。\n有靈性的自己，\n帶有松果體 能覺也能悟。' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '江山代有悟者出 ‧ 第二章：鳳凰', text: '牛驥同一皁，\n雞欺鳳凰食。\n怪雞？還是怪鳳凰？\n鳳凰不飛 與雞爭食，\n是不自知也。\n若是知道了，\n自己天生能飛 自然會飛。\n一旦飛了 永遠能飛，\n能自己 飛回到山中 當大王。' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '江山代有悟者出 ‧ 第三章：冬蟲夏草', text: '蟲草 蟲草，是蟲?是草?\n發芽 破土而出 是草，\n土裡腐朽 是蟲。\n我也曾想過 \n現在活著的是什麼，\n是因為生日那天杏花開了，\n在層層樹影間的陽光下打盹，\n想起難道說我只是來與蟲子的屍骸\n一同回歸塵土而已嗎?' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '2.無我 ‧ 第一章：大胖颱', text: '大海生胖颱，\n開眼無靈，走醉步，\n前路由天不由己。\n千年風，萬年颱，\n還要翻動風雲多長久？\n還能擾動風雲有多久？\n一雷驚醒，破九颱。\n該是風的，回到風；\n該是水的，回復水；\n該是雲的，回歸雲。' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無我 ‧ 第二章：戲如人生', text: '我看台上在演戲，\n我站台下看戲，也是戲。\n只是真實到，\n從來也不曾懷疑過我演戲。' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無我 ‧ 第三章：棋子', text: '棋盤本空，\n生來一子入局中。\n黑子白子互不相讓。\n等到 一子江山定，\n黑子白子 各散去，\n棋盤又空空。還來一局否?' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '3.無相 ‧ 第一章：有相無相非真相', text: '瞎子摸象 不是真相。\n鏡子照風 無影無縱，\n缺角黃金 依然是金。\n有相無相 不是真相。' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無相 ‧ 第二章：何必問究竟', text: '海市蜃樓何人掌，\n七彩虹橋誰能上。\n即然心知是幻影，\n又有何必問究竟' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無相 ‧ 第三章：缺角黃金', text: '缺角黃金，\n依然是金；\n本質不變，\n天生黃金。' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無相 ‧ 第四章：無絃琴', text: '無弦琴，\n天無筆畫彩虹，\n風無影動風鈴。\n琴無弦何有音，\n動心弦傳心音' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無相 ‧ 第五章：拱門', text: '拱門 拱門 空心無門，\n容的下天地 容的下你我。\n拱門外多少傷心事，\n拱門內自是本清靜。\n若是 來時清靜 去時清靜，\n心知無界限 那裡有拱門' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '4.無常 ‧ 第一章：白雲樹', text: '白雲樹 白雲樹，\n錯把白雲當做樹。\n是白雲的錯，\n哪裡不去蹲 偏要蹲枝頭。\n人生是變動的白雲，\n不是 不動的一顆樹。\n錯把人生的白雲給當做樹，\n這次白雲沒錯 眼睛也沒錯，\n是心錯了 而且一錯再錯' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無常 ‧ 第二章：白雲', text: '白雲在天，\n不用音符 也能跳舞。\n看似不著邊際，\n卻也未曾有過 掉水池。\n烏雲不為遮月特別來，\n偶有天狗來戲月，\n吞不下肚又吐還' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無常 ‧ 第三章：為誰功', text: '日月 白天黑夜 升與落 是為誰功。\n流星 劃破長空 來匆匆 去也無蹤。\n我心 一道彩虹 黑與白 不在其中。\n火車 穿過山洞 聚和散 轉眼成空' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '5.無言 ‧ 吹千古', text: '天不言 來 地不語，\n復又 省去筆墨寄東風。\n風中有信 無人問，\n難怪 東風吹不停，\n一吹 就是吹千古' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '6.無分別 ‧ 第一章：茶葉蛋', text: '一顆心自己無法分對半，\n卻喜歡作弄它人來分半。\n茶葉蛋 蛋黃蛋白都是蛋，\n不吃蛋黃剩一半。\n原來人心竟是這般，\n調皮愛搗蛋' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無分別 ‧ 第二章：手掌', text: '一個手掌連五指，\n本是一家親。\n若總是如拳緊握，\n何以見得掌心' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無分別 ‧ 第三章：海和浪', text: '每顆心上某一個地方，\n總有個悸動揮不散。\n每個深夜某一個地方，\n總有著最深的思量。\n這世上萬千的變幻，\n海和浪是如何能夠分對半。\n心若是有靈犀的方向，\n為何會害怕潮汐來相伴' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '7.無聲 ‧ 第一章：風鈴花', text: '風鈴花 風鈴花，\n風來風去 已過半响。\n吹不出 半點聲響。\n無聲的仁者啊，\n心是本清靜' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無聲 ‧ 第二章：龜山島', text: '東北有一島，名叫龜山島；\n頭戴白雲帽，望島思故鄉。\n若論故鄉情，龜島最死忠；\n如如不動，守蘭陽。' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無聲 ‧ 第三章：老樹公', text: '前人種樹 後人乘涼，\n一個善良好初衷。\n老樹公 不變的初衷。\n春夏秋冬，\n為何路人都是 過往匆匆。\n誰能明白 好初衷。\n我會常常來吹吹風，\n待在大樹下，多多來陪老樹公' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '8.本無事 ‧ 第一章：井底之蛙', text: '我笑井底蛙，\n坐井觀天 天不大。\n蛙在井底回：\n我管它天大還是地大，\n都不如現在 我吃飽飽的肚子大大' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '本無事 ‧ 第二章：天梯', text: '洞穴灑金光，\n內有 達摩祖師 在打禪。\n外有 雲天梯，\n天梯通何處，\n天事不過問' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '9.無為 ‧ 第一章：打太極', text: '宗師樹下打太極，\n無招無式隨心意。\n乾坤可以掃落葉，\n陰陽匯聚抱成球。\n真力一散盡，\n大地成方圓。\n道法自然歸自然，\n轉身拂袖揚長去。' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '10.不羨 ‧ 第一章：何用羨水仙', text: '輕騎鐵馬走過 人間四月天，\n小草飲朝露 何用羡水仙' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '不羨 ‧ 第二章：梯田', text: '一方水土 養就一方人。\n梯田 梯田，\n層堆層疊 風光獨特。\n心不該 羡梯田，\n有心不要田 有田變成思，\n有田就不甜' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '不羨 ‧ 第三章：終入海', text: '近看 看山小 入山才知山廣大。\n遠看 看山大 負重如何向前行。\n不用羨山高 一山還有一山高。\n不用羨水長 再長的河流 終入海' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '11.自覺 ‧ 第一章：且問誰', text: '向日葵，\n衷心逐一 向著日。\n要找天光 且問誰' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '自覺 ‧ 第二章：路是自己開', text: '是誰為我開的路？\n許我自由 無拘無束。\n遇見自己 大海伴遊 魚群讓路。\n不必異想 不是天開,\n路是自己開' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '自覺 ‧ 第三章：幸福自己找', text: '花若盛開 蝴蝶自來，\n若不盛開 花開不為誰 自然也是美。\n人若精采 天自安排，\n若不精采 幸福自己找，\n其實也不必天安排' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '12.覺他 ‧ 第一章：巫山月', text: '巫山夜獨行，明月當空照。\n既知天光無限好，\n不該只讓照巫山' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '覺他 ‧ 第二章：小小馬兒', text: '天寬地闊 群山靜默。\n油油草地 放金芒。\n忽有一馬 自天外飛奔而來。\n蒼茫天地 現生機 \n瞬間就活了過來。\n小小馬兒合該是 生命的靈動。\n不只能讓 靈魂跳舞，\n也足夠激活 這片有情天地' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '13.無知覺 ‧ 第一章：最難穿透是人心', text: '一把好琴，\n一把好琴 塵封已久。\n宮商角徵羽 本來就俱全。\n琴音不受限 迴盪天地間。\n琴聲雖悠揚 最難穿透是人心' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無知覺 ‧ 第二章：幾人能知見', text: '莫尋過往來時月，\n今月直須照今光。\n今月照今光，道德漫天下，\n又有幾人能知見' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無知覺 ‧ 第三章：奈若何', text: '峨嵋山上話家常，\n佛不入心亦枉然。\n不知清風徐來拂，\n不解風情奈若何' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '無知覺 ‧ 第四章：瓶中信', text: '人生有如瓶中信，\n瓶瓶之中都有信。\n唯願秋波送一程，\n洋流再贊一臂力。\n早日漂到岸上去。\n自拾自個瓶中信，\n打開瓶子看究竟' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '14.茫茫然 ‧ 第一章：風火輪', text: '無敵風火輪 轉Y轉，\n轉的眼花又潦亂 \n轉到胎皮也泛黃。\n為誰辛苦 為誰忙。\n若只是為了轉而轉，\n倒也不必 搞到東風無力百花殘' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '茫茫然 ‧ 第二章：雨轉晴', text: '鐘擺隨時盪不停 少有閒人能記起。\n日晷不用人提醒 肚子咕咕就能知。\n月圓就是拜拜時 月缺少人來問起。\n十二生肖來數年 一輪才過又一輪。\n歲月無情人有情 花開一半雨轉晴' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '茫茫然 ‧ 第三章：門前外', text: '山中起大霧 不見五指山\n慌亂找歸路 我家在何處\n門前一道光 直破所有霧\n回神才發現 就在門前外' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '15.當下 ‧ 第一章：神仙作畫', text: '畫龍點睛成活物，\n一飛沖天不見蹤。\n畫牛吃草草太鮮，\n牛吃光後成過客。\n神仙作畫 只有當下。\n當下一過 一紙空白畫' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '當下 ‧ 第二章：西瓜甜', text: '陽光炸烈雲先知，\n萬里雲日炎炎。\n清風送不來涼意，\n鞦韆盪不出火盆。\n此時正是嚐瓜時，\n今日西瓜特別甜' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '當下 ‧ 第三章：好柿近', text: '開門有好柿，\n柿是如意寶。\n何必想遠處，\n足夠吃飽飽' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '16.等待 ‧ 第一章：許願池', text: '廟前一座許願池，\n池中無魚卻有鱗。\n天光一旦照入池，\n金光奪目閃不停。\n財神數幣撈不起，\n姻緣一線牽千里。\n願須時間來整理，\n終有一天輪到你' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '等待 ‧ 第二章：天山雪蓮', text: '天山有雪蓮，長的胖胖的。\n花開不定時，開花不等人。\n有人等花開 一等數十年，\n有人才剛到 不久花就開。\n花開不為誰 開花看機緣' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '等待 ‧ 第三章：孔雀不開屏', text: '孔雀今日不開屏，\n染了一身白雪塵。\n稍失一點碧綠，\n卻也多添了一分仙氣。\n一時興起 就躍上大樹根，\n來個 孤芳自賞日。\n若有沉思 若有悟，\n想是神遊太虛 等展翅' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '等待 ‧ 第四章：月慈祥', text: '曇花一現 \n像是在等待某位有緣人。\n繁華已過盡 \n船過都是水無痕。\n秋夜 其實也 不孤涼。\n杯中有飲 月慈祥' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '17.動靜 ‧ 第一章：蟬與禪', text: '蟬鳴七日猶未盡興，\n禪修數載無邊無盡。\n一動一靜，\n蟬有蟬的金蟬脫殼去，\n禪有禪的羽化登仙去。\n此身雖不同，\n都向歡喜去' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '動靜 ‧ 第二章：風動太極', text: '吹的是寒風 動的是風鈴。\n紅黃楓樹 相比鄰。\n且借 紅楓以為陽 黃楓以為陰。\n復 以傘開眼，\n是謂 風動太極' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '動靜 ‧ 第三章：浴火鳳凰', text: '倚天劍 怕遇屠龍刀\n太極拳 柔弱可以勝剛強\n牆頭草 風吹兩面倒\n金剛牙 歷經歲月無動搖\n舍利子 是浴火才出的鳯凰' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '18.轉念 ‧ 第一章：誤解', text: '不要誤解 含羞草 不賞臉，\n只是比較害羞而已。\n不要誤解 蜈蚣愛遲到，\n天生腳多 出趟遠門穿鞋久。\n不要誤解 螃蟹橫行又霸道，\n平衡感不好 不用風吹走路斜。\n不要誤解 父親肩膀寛，\n甜蜜負擔 使肩寛' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '轉念 ‧ 第二章：金針花承接', text: '秋天芒花季 不用雪來白山頭，\n風吹蒲公英 脫落也能稱自在。\n馬祖藍眼淚 療癒淚滴何來悲，\n老天灑金粉 天選金針花承接' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '19.做自己 ‧ 第一章：風從虎', text: '雲從龍來 風從虎，\n提筆來畫 風和虎。\n畫虎不成 反類犬。\n風是風來 虎是虎，\n何來作畫 風從虎' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '做自己 ‧ 第二章：天雨炸榴槤', text: '天雨炸榴槤\n無論再大的雨，\n也洗不掉 它身上的味。\n即是自然生 就順自然意，\n莫忘榴槤味 也有人說甜' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '20.番外 ‧ 第一章：真假', text: '春雪櫻花片，\n夏雪油桐花。\n秋雪是白芒，\n冬雪才是真。\n要嘛真不來，\n一來滿山野' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '番外 ‧ 第二章：輕重', text: '水上漂，\n道路彎彎走不直。\n踏雪尋梅苦行深。\n苦練層層金鍾罩，\n不若輕功水上漂' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '番外 ‧ 第三章：無心之德', text: '蜜蜂，蜜蜂嗡嗡嗡，\n穿梭花田中。\n光天化日盜採蜜，\n沒人喊它是小賊。\n授粉只是順便工，\n無心卻播百花種。\n有牌天字第一號，\n永久特許它偷盜' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '番外 ‧ 第四章：破洞天光', text: '要多少的光 才夠照亮一個人?\n只要 破洞的餘光 就足夠。\n天光會照向懂得笑的人,\n因為他們值得人間的幸福.' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '番外 ‧ 第五章：悔過', text: '有心不要田 有田變成思。\n我思故我在 有我不自在。\n有我會犯錯 有錯就改過。\n悔過丟水裏 有水不復起' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '番外 ‧ 第六章：急急如律令', text: '巍巍老君山 有廟立山頭。\n老君已仙去 仙風未散去。\n太上老君 急急如律令，\n能召 白雲白雪都來朝' },
+            { section: '【詩文版】卷一 悟者篇', chapter: '番外 ‧ 第七章：不敵老天筆一畫', text: '老天愛作畫，\n紅紅天空 蒼雲海。\n鬼斧神工 大自然。\n老天愛作畫，\n一筆 把我也來畫。\n人間愛作畫，\n不敵老天筆一畫' },
+
+            // ================= 【詩文版】卷二 問心篇 =================
+            { section: '【詩文版】卷二 問心篇', chapter: '1.如來 ‧ 第一章：珠光', text: '千年一暗室，\n有一如來手托珠。\n只要珠光，\n珠光見如來，自見自如來。' },
+            { section: '【詩文版】卷二 問心篇', chapter: '1.如來 ‧ 第二章：如來神掌', text: '你還記不記得 ，\n有一招從天而降的掌法\n威力萬鈞 能降服一切 盡化虚無 。\n如來神掌 千變萬化 可以 重重達千鈞 \n也可 輕輕如翻掌 問世間何處有神掌?\n心中有如來 何處無神掌?' },
+            { section: '【詩文版】卷二 問心篇', chapter: '1.如來 ‧ 第三章：風送快意', text: '無獨有偶 揮之不去\n緣起緣滅 可歌可泣\n佛在汝心 不離不棄\n自如來去 風送快意' },
+
+            { section: '【詩文版】卷二 問心篇', chapter: '2.本清靜 ‧ 第一章：風吹月', text: '風吹月，\n來無影去也無蹤；\n月自清涼，風自吹' },
+            { section: '【詩文版】卷二 問心篇', chapter: '2.本清靜 ‧ 第二章：風鈴花', text: '風鈴花 風鈴花 \n風來風去 已過半响\n吹不出 半點聲響 \n無聲的仁者啊 ….心是本清靜' },
+            { section: '【詩文版】卷二 問心篇', chapter: '2.本清靜 ‧ 第三章：水晶花', text: '水晶花，水靈。\n脈絡，自分明。 \n水晶花語 \n不吐芬芳 吐澄明' },
+
+            { section: '【詩文版】卷二 問心篇', chapter: '3.暖心 ‧ 第一章：遊子衣', text: '玻璃心 玻璃心 / 碎的是玻璃 / 還是心?\n遊子衣 遊子衣 / 暖的是衣服 / 還是心?\n拜菩薩 拜菩薩 / 拜的是水果 / 還是心？\n散步去 散步去 / 散的是腳步 / 還是心?\n人生來 人生來 / 來的是皮囊 / 還是心?' },
+            { section: '【詩文版】卷二 問心篇', chapter: '3.暖心 ‧ 第二章：百姓燈', text: '人間煙火 總燦爛，\n燦爛只在 一瞬間\n百姓燈火 雖點放，\n點放盞盞 暖心燈' },
+            { section: '【詩文版】卷二 問心篇', chapter: '3.暖心 ‧ 第三章：歲月釀的酒', text: '甕是老的早 酒是老的好\n陳年老高梁 是歲月所涵養\n歲月釀的酒 輕輕的一嚐 \n便足夠 心頭暖洋洋' },
+
+            { section: '【詩文版】卷二 問心篇', chapter: '4.真有心 ‧ 第一章：榮華衣', text: '一命 二運 三風水 四行善 來 五謮書 \n猶如集點來換 榮華衣\n可榮華衣 榮華衣 風雨無法生信心\n榮華衣 榮華衣 夜半也沒法 心不驚\n蝴蝶就是榮華客 穿著榮華衣 \n古有周莊來夢蝶 是夢? 是醒?\n分說 分説 不由分説' },
+            { section: '【詩文版】卷二 問心篇', chapter: '4.真有心 ‧ 第二章：掌中沙', text: '拾起一把海裡沙  流沙總在掌縫逝\n攤開手掌接飛雪  雪在掌心中消融\n是要握沙或接雪  掌中若是真有心 \n答案不説已分明' },
+
+            { section: '【詩文版】卷二 問心篇', chapter: '5.唯心不老 ‧ 第一章：芒草', text: '禿子跟著月亮走，可增流明光三千。 \n多情若知應笑我，早生花髮百三千。\n芒草芒草，是芒也是恾，\n直讓山頭白了雪。 \n秋風真是那般的苦澀，\n能夠吹到你我兩鬢白。\n一直以為是老了，其實只是心乏了。 \n唯心不老。' },
+            { section: '【詩文版】卷二 問心篇', chapter: '5.唯心不老 ‧ 第二章：童子眠', text: '橘子掛樹頭 也是一方月\n樹下無童子 想來已入眠\n夢裡摘橘月 是夢似真實\n該羨童子眠 睡夢中香甜' },
+            { section: '【詩文版】卷二 問心篇', chapter: '5.唯心不老 ‧ 第三章：飛飛想', text: '我看老鷹天上飛 \n閉上眼睛還在飛 \n到底是在天上飛 \n還是在我心裡飛 \n非非想也想飛飛\n我坐老鷹天上飛' },
+
+            { section: '【詩文版】卷二 問心篇', chapter: '6.但問本心 ‧ 第一章：大秘寶 心頭找', text: '為找大秘寶 翻箱倒櫃找\n為找大祕寶 潛下海裡找\n為找大祕寶 登上山裡找\n為找大袐寶 鑽地土裡找\n為找大祕寶 飛天雲裡找\n都是向外找 都不向內找\n遇的到 拱門外所有 \n遇不了 拱門內自我\n身就帶寶劍 從未出過鞘\n本來似璞玉 未曾見過光\n要找大祕寶 \n若不回到心裡找\n又能去向何處找' },
+            { section: '【詩文版】卷二 問心篇', chapter: '6.但問本心 ‧ 第二章：喜悅 本是心上物', text: '只看喜鵲上枝頭\n喜上眉梢不自覺\n喜悅本是心上物\n歡喜心是大樸滿\n微笑錢幣隨時存' },
+            { section: '【詩文版】卷二 問心篇', chapter: '6.但問本心 ‧ 第三章：有心作伴', text: '人是獨處 有心作伴\n天涯再無孤獨客\n紅麈也有夢醒人' },
+            { section: '【詩文版】卷二 問心篇', chapter: '6.但問本心 ‧ 第四章：幸運草 自心知', text: '我知四葉草 為求幸運天天找\n莫崽羊不識四葉草 有草就吃飽飽\n加添心一葉 三葉草變四葉草\n世上只有心知的幸運 從此不用找' },
+
+            // ================= 【改詞篇】卷一 疑情 =================
+            { section: '【改詞篇】卷一 疑情', chapter: '1. 想要問你想不想 用此生找到答案?', text: '我從春天走來 你在秋天說要分開\n說好的幸福美滿 而現實可會一直這樣？\n為何總是這樣 悲歡離合人生無常\n想要問你想不想 用此生找到答案？\n\n如果說我是真實存在\n那為何命卻沒能由我主宰？\n日夜都問想也不明白\n難道說這世界真是這樣？\n\n想要問問你敢不敢 看透眼前所有的假象\n想要問問你敢不敢 相信沒有那個我存在\n想要問問你敢不敢 回到小孩時候的良善 \n像個小孩天真自然 而那又讓人多為難？' },
+            { section: '【改詞篇】卷一 疑情', chapter: '2. 那個錯付的逃兵? 怎麼能夠實現我許下的心願', text: '難過的眼淚是流星\n快樂的眼淚是流星\n滿天都是誰的眼淚在飛\n那一顆是你我流過的淚\n\n不要叫我許願 流星是誰的眼淚\n那個錯付的逃兵\n怎麼能夠實現我許過的願\n\n誰的眼淚在飛 是不是錯付的眼淚\n變成了世界上每一顆不快樂的心\n誰的眼淚在飛 是不是錯付的眼淚\n\n昨天的眼淚變成星星 今天的眼淚還在等\n每天都有流星不斷下墜 逃不過我清醒的眼睛\n不要叫我許願 流星是誰的眼淚\n那顆錯付的逃兵 怎麼能夠實現我許過的願\n\n誰的眼淚在飛 是不是流星的眼淚\n變成了世界上每一顆不快樂的心\n誰的眼淚在飛 是不是錯付的眼淚\n誰的眼淚在飛 是不是錯付的眼淚\n誰的眼淚在飛 是不是錯付的眼淚\n變成了世界上每一顆不快樂的心\n誰的眼淚在飛 是不是錯付的眼淚' },
+            { section: '【改詞篇】卷一 疑情', chapter: '3. 沒有人能夠告訴我 活著到底是為什麼?', text: '沒有人能夠告訴我\n沒有人能夠回答我\n人活著到底是為什麼\n讓我一片模糊在心頭\n在我心頭\n\n多少年以後佛經上說\n人生這東西不會長久\n也許它確實很美麗\n也許過了今夜不再有\n哦...\n\n佛說人身難得能擁有\n也許今生錯過不能夠有\n\n就看那影像如此飄過\n只是看著讓它走\n所有影像已經慢慢消失在風中\n只是每天站在風中任那風兒吹\n風兒能夠讓我想起\n幻中生幻的感覺\n只是每天站在風中任那風兒吹\n風兒能夠讓我想起\n幻中同幻的感覺\n感覺...' },
+            { section: '【改詞篇】卷一 疑情', chapter: '4. 鳳凰飛不了 向誰去喊冤?', text: '你我皆凡人 生在人世間\n終日奔波苦 一刻不得閒\n既然不是仙 難免有雜念\n念頭停不了 泡泡飛滿天\n\n多少男子漢 一怒為紅顏\n多少同林鳥 已成分飛燕\n人生何其短 何必苦苦戀\n鳯凰飛不了 向誰去喊冤\n\n問你何時曾看見 這世界為了人們改變\n有夢寐以求項鍊 是否就算是擁有春天' },
+            { section: '【改詞篇】卷一 疑情', chapter: '5. 人生幾何，真的看清過自己？', text: '如果不能明白心，還是那個老脾性\n日子過得怎麼樣，人生是否要珍惜？\n\n一天到晚忙不停，過著同樣的日子\n不知道會不會，辛酸無奈數不清。\n\n任時光匆匆流去，只剩下空虛\n自甘情願，失了心的氣息\n人生幾何，真的看清過自己？\n失去能飛的能量，也不可惜。\n\n所以佛，才提醒，莫忘覺醒自己\n光腳ㄚ，踏浪花，\n是何等，真情至性。' },
+            { section: '【改詞篇】卷一 疑情', chapter: '6. 向日葵 要找天光 又該去問誰', text: '幸運草 心知幸運 又有何必找\n無琴弦 空琴無弦 又有何來音\n如是我聞 一曲破封\n曾經了 蒼海難為水\n\n向日葵 要找天光 又該去問誰\n藍眼淚 療癒淚滴 又有何來悲\n白雲在天 自由無邊\n等雲稍歇 除卻巫山不是雲\n\n嘆為何  我把酒問青天\n花開了  花開也不為誰\n空空的棋盤  錯落了黑白無間\n生來一子入局是 我們\n\n光腳Y  捲褲管 踏浪花\n童子眠 睡夢中 摘橘月\n天灑的金粉\n金針花會來承接\n杯中有影慈祥是 秋月' },
+            { section: '【改詞篇】卷一 疑情', chapter: '7. 深深太平洋底 何來傷心?', text: '離開真的殘酷嗎\n或者溫柔才是可恥的\n或者孤獨的人無所謂\n無日無夜無條件\n前面真的危險嗎\n或者背叛才是體貼的\n或者逃避比較容易吧\n風言風語風吹沙\n\n往前一步是江湖\n退後一步是最初\n風不平浪不靜 心還不安穩\n冰封島鎖住一個人\n\n人説 我思故我在\n我思 只是在編織夢幻\n往事默默沉沒沉入海\n未來不在活現在\n\n如果 潮去隨它去\n如果 潮來就隨它過來\n浮浮沉沉不平浮上來\n過後統統 歸大海\n\n一波還未平息 一波又來侵襲\n茫茫人海狂風暴雨\n一波還來不及 一波早就過去\n一生一世如夢初醒\n深深太平洋底 何來傷心?' },
+            { section: '【改詞篇】卷一 疑情', chapter: '8. 為何你 為難了自己 卻又不知情?', text: '寫信告訴我今天 夜是什麼顏色\n在遠方的你此刻 心情又如何?\n灰色是不想說 藍色是憂鬱\n而漂泊的你 狂浪的心 停在哪裡?\n\n寫信告訴我今夜 你想要夢什麼?\n夢裡外世界是否 都讓你無從選擇\n你揪著一顆心 整夜都閉不了眼睛\n為何你 為難了自己 卻又不知情\n\n寫封信給我 轉換不同心情\n說你在 光腳踏浪時候\n是怎樣的心情?' },
+            { section: '【改詞篇】卷一 疑情', chapter: '9. 凝望夜空 往日是誰 造就心中疲累?', text: '消失的光陰飄散在風裏\n過去了就讓它過去\n獨處日子 誰來伴隨 何不聽蟬\n\n添亂的聲音已在減去\n樓臺望月遙遙相對\n凝望夜空 往日是誰 造就心中疲累\n\n來忘掉錯對 來拋掉過去\n黃粱一夢人生 總有樂趣\n不追問何究竟 不過問命途程\n似電影裏競爭 不必太過究真\n\n奔波的風雨裏 不羈的醒與醉\n所有故事像已發生 飄泊歲月裏\n雷雨過已靜下 將心意再還誰\n等徐風來帶走 葉飄飛' },
+            { section: '【改詞篇】卷一 疑情', chapter: '10. 是誰風裡 雨裡 一直默默守護在原地?', text: '我聽見雨滴 落在青青草地\n我聽見窗外 樹蛙蟬鳴聲音\n可是我沒有聽過你的聲音 認真呼喚我姓名\n遇上你之前 還不懂道理\n領悟了 才覺得刻骨銘心\n為什麼沒有發現 遇見自己\n是生命最好的事情\n\n也許人都忙著微笑和哭泣\n忙著追逐天空中的流星 人理所當然的忘記\n是誰風裡 雨裡 一直默默守護在原地\n\n原來你是我 天生就有的幸運\n原來我們連體嬰 一直靠得那麼近\n那為我對抗命運的確定\n那陪我淋的雨 一幕幕都是你\n一塵不染的真心 與你相遇 好幸運\n可我還不能 時刻讓你照見我身影\n但願在我看不到的邊際\n你張開了雙翼 遇見你的註定 我是有多幸運\n\n前半生是段跌跌撞撞旅行\n擁有著後知後覺的美麗\n在這裡要感謝是你 給的轉機\n讓我能做回我自己' },
+            { section: '【改詞篇】卷一 疑情', chapter: '11. 我吹過你吹過的晚風 那麼我們算不算相同?', text: '數不完 見證許願的繁星\n沒靈驗 誰來安慰壞心情\n十字路口閃爍不停的信號燈\n有個人 顯然心事重重\n四個字 只能說給自己聽\n仰著頭 不要再讓情緒作弄\n哪裡有可以峰迴路轉的宿命\n但問本心 \n\n填不滿 半排觀眾的電影\n直到散 場時突然亮起燈\n字幕定格在某某出品和發行\n我目送 他們行色匆匆\n像個自 不量力的復讀生\n完不成 金榜題名的使命\n命運不是猜剪刀石頭布的決定\n但問本心 \n\n我吹過你吹過的晚風\n那我們算不算相同\n可如夢初醒般的兩手空空\n心不同 \n我吹過你吹過的晚風\n那麼我們算不算相同\n讓錯亂時差留在落地時空\n心本同 本同 ---' },
+            { section: '【改詞篇】卷一 疑情', chapter: '12. 問世間 人間何處有神掌?', text: '（男）問世間 如來 只在廟堂坐\n（女）或者 如來 也在我 心堂坐\n（男）問世間 人間何處有神掌\n（女）學神掌 始終找不到 比悟好\n（合）一心可比 天上星\n（合）無一可比擬\n\n（男）論武功 俗世中不知邊個高\n（女）或者 如來神掌是 最好\n（合）但我知 有心就會有神掌\n（合）在我心 如來神掌上好' },
+            { section: '【改詞篇】卷一 疑情', chapter: '13. 花田蝴蝶 何時才能成一片?', text: '你的臉上 為何掛滿濕的淚\n你的臉上 為何總灰的臉\n坐落在野柳的女王峰\n任海風侵犯一遍一遍\n年紋中刻劃長長的倦念\n\n落子在棋盤的線格邊\n任繁思吐盡一絲一絲\n繭殼中藏著深深的執念\n\n花田蝴蝶 何時才能成一片\n海天一色 何時能相連\n等待在幸福的另一邊\n任自由嬉笑一天一天\n天空 自由瀟灑 無邊\n\n你的天空 本來就有慈祥月\n你是碎浪 你歸屬大海的\n但願臉上 不再掛滿濕的淚\n但願臉上 不再塗上灰的臉' },
+            { section: '【改詞篇】卷一 疑情', chapter: '14. 同一池的大海水 有何分別?', text: '我有一張原本來的臉\n到今天才看見\n有點心酸在我的心間\n如此難遇的因緣\n\n看著天空今晚是月圓\n相對默默無言\n只是心中的感慨萬千\n當作今生累世相欠\n\n我說 是我們相見恨晚\n你説 是自破的 命運糾纏\n在冰流浪泡間 來回的照見　\n同一池的大海水 有何分別⋯\n\n我說 是我們相見恨晚\n你説 是自破的 命運糾纏\n在沒聞佛法前 輪迴千萬遍\n今生來做個告別 就此了結⋯' },
+            { section: '【改詞篇】卷一 疑情', chapter: '15. 為何渡我不渡他?', text: '我前幾天種下 播種的是地瓜\n小蟲吃飽了嘛 把菜園都吃光\n冒出土撥鼠 天地不作聲\n幾首小曲難敵 這滿院的青蛙\n\n你離開這個家 江湖路熱血灑\n還能回頭了嘛 看你掙扎臉頰\n等奪回了地盤 再還妳一個家\n為何渡我不渡他\n\n這風兒還在刮 亂了誰的年華\n他身受了重傷 在床上不動啦\n歲月曾饒過誰 又度過幾個夏\n眼睛還紅嘛 人已經不在啦\n\n晨鐘再敲幾下 不渡世間繁華\n窗外雨還在下 轉眼又清明啦\n我問佛祖啊 你肚子那麼大\n為何渡我不渡他\n\n這世上再無他 這凡眾一啊\n你還能聽到嗎\n你的肚子是哪麼的大\n可⋯可問為什麼\n渡我不渡他\n你渡我不渡他' },
+            { section: '【改詞篇】卷一 疑情', chapter: '16. 誰是誰 穿上厚厚的偽裝?', text: '當月光灑在我的臉上\n我想我就快要漸漸明亮\n這世上 有一種自我覺醒的湯\n喝了它有神奇的力量\n閉上眼看見天堂\n那個才是你本來模樣\n我躲開無數個 巔倒夢想\n趕走藤蔓爬出的憂傷\n\n為了誰 變成現今模樣\n為了誰 染上了瘋狂\n誰是誰 穿上厚厚的偽裝\n誰是誰 換了心腸\n\n我們還能不能 打破界限\n我在佛前苦苦求了幾千年\n我願意用領悟 來看穿一切\n希望可以感動上天\n我們還能不能能不能 打破界限\n我在佛前苦苦求了幾千年\n當我在踏過了這座悟峰尋月\n讓我再 看一看人世間\n回過頭 再看一看人世間' },
+
+            // ================= 【改詞篇】卷二 用悟 =================
+            { section: '【改詞篇】卷二 用悟', chapter: '1. 世界竟是一隻美麗的蝴蝶 ', text: '有一佛 獨坐在 千年幽暗的房間\n他盼著 一燈即明 今生就能夠被發現\n原來他 一直都 待在你我的心間\n遇上了 要慶幸 不流淚\n\n我以為 我可以 改變世上的一切\n才發現 世界竟是一隻美麗的蝴蝶\n太愚昧 太依戀 才放手去自由追\n一瞬間 才驚覺 是夢蝶\n\n雨紛飛 飛在天空裡是我的依戀\n淚低垂 垂在手心裡是我的愚昧\n誰了解 追逐了千年追的是夢蝶\n我知道 夢過後該醒覺\n\n我相信 這世上沒永遠' },
+            { section: '【改詞篇】卷二 用悟', chapter: '2. 一子由我始 也只能 由我自己來破子', text: '生如棋 入局深 這是宿命還是原罪\n執著有多深 就是蒼天捉弄我幾分\n\n不能想 不敢問 是我太傻還是太真\n寧靜的夜晚又能留住多少個春天\n\n生如棋 由天不由己\n入了局 漠不在乎\n入局深 這場夢吹不散\n只好來世再糾纏\n\n生如棋 入局深\n遊遊盪盪幾番浮沉\n我思故我在 有我卻是難能得自在\n一子由我始 也只能\n由我自己來破子' },
+            { section: '【改詞篇】卷二 用悟', chapter: '3. 有相無相 從來就不是真相', text: '小時候聽說過 瞎子摸象\n每個人的答案 都不一樣\n長大後我拿著 鏡子照風\n怎麼照也照不出 風的影縱\n不明白的是 為何總情愿\n糊裏糊塗 向大海裡去撈月\n是否來遲了 明白的淵源\n有相無相 從來就不是真相\n\n那白雲在天空 漫不經心\n卻也未曾有過 落入水池\n那冰山在海上 漂浮不定\n最後回到 原本水的樣子\n不明白的是 在這人世間\n總是找不回 本來的様子\n是否來遲了 明白的淵源\n編織了 糊裏糊塗 無可計數\n\n善變的你\n佇立在茫茫的塵世中\n聰明的孩子\n提着自心的燈籠\n瀟灑的你\n將心事化入大海中\n能悟的孩子\n你是造物的恩寵' },
+            { section: '【改詞篇】卷二 用悟', chapter: '4. 我慢慢地聽 雪落下的聲音', text: '輕輕 雪泥鴻爪印\n輕輕 雁去了不留影\n輕輕 河沙不累積\n輕輕 投石水不驚\n\n我慢慢地聽 雪落下的聲音\n反覆是在提醒我要輕輕\n我有暖暖掌心 吹雪紛紛融盡\n慢慢的品茶 好心情\n\n輕輕 似空中飛羽\n輕輕 風去了無痕跡\n輕輕 晚風吹不停\n輕輕 吹落了蒲公英\n\n我慢慢地聽 雪落下的聲音\n反覆是在提醒我要輕輕\n我有暖暖掌心 漫天雪雖無盡\n大地鋪上白紗 一片好風景' },
+            { section: '【改詞篇】卷二 用悟', chapter: '5. 我最不忍看你 將妄當做真 ', text: '是對是錯也好 不多說了\n是走是留也好 不必揭曉\n何事更重要 回本心的需求\n活在當下 怎麼可缺少\n\n是進是退也好 有若狂潮\n是成是敗也好 不需發表\n曾經你明了 妄我識都沒有\n幸福 自此心知不會少\n\n這人世 越是燦爛越美妙\n離別最是吃不消\n我最不忍看你 將妄當做真\n要走一刻 請不必諸多眷戀\n浮沉浪似浪潮 那會沒有思念\n你我傷心到 講不出再見\n\n我最不忍看你 將妄當做真\n要走一刻  請不必諸多眷戀\n浮沉浪似浪潮 來回生生世世\n你我當知道 嘸來去嚨沒代誌' },
+            { section: '【改詞篇】卷二 用悟', chapter: '6. 如果能早一點明白 是能飛的鳳凰', text: '一朵花 開五瓣 落在那六祖壇經上\n靜默 闔上經書 我低下頭 聞見一陣芬芳\n\n那個永恆的夜晚 五十歲仲夏\n突然清醒那個夜晚\n讓我往後的時光 每當有感嘆\n總想起 當天的星光\n那時候的清醒 為什麼就能那樣簡單\n而又是為什麼 人年少時\n自己一定要讓自己受傷\n\n在這相似的深夜裡\n你是否一樣 也在靜靜不捨感傷\n如果早一點明白 是能飛的鳳凰\n是不是 又變不一樣\n你都如何回憶我 帶著笑或是很沉默\n這些年來 人一樣 心早已經不一樣\n\n後來 我總算學會了 無為靜觀\n不去抓 也不延伸 物我都盡忘\n後來 終於在佛法中明白 人應該\n過好當下活無礙\n\n永遠不要再重來\n像一隻鳳凰\n飛上九霄雲外' },
+            { section: '【改詞篇】卷二 用悟', chapter: '7. 你不必執著於泥塑的相上', text: '在那遙遠的地方\n有位好菩薩\n人們走過她的身旁\n都會合掌虔誠的膜拜\n\n她那慈祥的笑臉\n好像紅太陽\n她垂憐悲憫的眼睛\n好像晚上明媚的月亮\n\n我願是一朵白蓮\n陪在她身旁\n每天看著她慈祥笑顏\n和她一身淨白的衣裳\n\n在那遙遠的地方\n有位好菩薩\n她就活在那 人們的心裡\n不必執著於泥塑的相上\n\n我願是一朵白蓮\n開在她身旁\n我願她拿著楊枝的甘露\n不斷輕輕灑在我身上' },
+            { section: '【改詞篇】卷二 用悟', chapter: '8. 人生兩個字 好辛苦', text: '昨日煩惱如流水\n離我遠去不可留\n明日亂我心多煩憂\n抽刀斷水水更流\n舉杯澆愁愁更愁\n明朝清風四飄流\n\n由來只聞嬰兒笑\n有誰聽到老人哭\n人生兩個字 好辛苦\n是要悟一個明白\n還是要裝作糊塗\n路到盡頭 沒回頭路\n\n看是個鴛鴦蝴蝶\n歌舞昇平的年代\n可是 最終誰又能\n擺脫人世間的悲哀\n\n花花世界 弱水三千\n花是花 霧是霧\n霧裡看花 看不清楚\n又當了一回 睡蓮\n（顛倒夢想 睡蓮）' },
+            { section: '【改詞篇】卷二 用悟', chapter: '9. 半生的際遇 烏魯木齊都已過去', text: '為此我白費了\n半生的際遇 烏魯木齊都已過去\n還好這次遇見\n打破所有界限 盼能覺醒自己\n\n沙丘它總是慢慢的累積\n在我人生無法抹去\n黃沙上的足印 不帶半點泥濘\n走每一步都有願景\n\n文字它從來沒能將我的心意\n表達千萬分之一\n一個人的武林\n左手右手太極 只重其心不重其形\n\n陌生的城市啊 熟悉的角落裡\n也曾翻來覆去 也曾徬徨不定\n不知將會面對什麼樣的變局\n\n在漫天風沙裡 我有心靈犀\n看風沙 都從身邊過去\n多盼能送君一句 直到山窮水盡\n莫忘覺醒自己' },
+            { section: '【改詞篇】卷二 用悟', chapter: '10. 憑誰意.意無限.悟者出.破棋盤.', text: '萬水千山縱橫 誰沒風急雨翻\n曾經吞吐風雷 飲下霜杯雪盞\n\n獨闖悟峰尋月 人生幾多輪轉\n可惜他世人 非要將僧俗路來限\n\n曾經水底撈月 徒勞無功而返\n誰知覓來尋去 朗月在心間\n\n憑誰意... 意無限...\n悟者出... 破棋盤...\n今月出… 光耀芒.…' },
+            { section: '【改詞篇】卷二 用悟', chapter: '11. 歸去我要 歸去我要', text: '風影 盤距在娑婆\n欺凌將年少滴落\n回頭 凝望著沙城\n慢慢將 眼淚擦乾\n\n沙城 傾圮的山門\n磊磊將 初心阻塞\n沙河 潺潺的水流\n聲聲向歸人 呼喚\n\n歸去我要 歸去我要\n回到 我的沙城\n白雲 將再裊繞\n彩虹 將再裊繞\n沙河 將再裊繞' },
+            { section: '【改詞篇】卷二 用悟', chapter: '12. 家鄉的水面開蓮花 夜夜想起媽媽的話 閃閃的淚光魯冰花', text: '我知道　半夜的星星會唱歌\n想家的夜晚\n它就這樣和我一唱一和\n我知道　午後的清風會唱歌\n夏天的蟬聲 它總是和風一唱一和\n\n當手中握住繁華\n心情卻變得荒蕪\n才發現世上　一切都會變化\n當青春剩下日記\n烏絲就要變成白髮\n不變的只有這首歌\n在心中來回的唱\n\n天上的星星不說話\n地上娃娃想媽媽\n天上的眼睛眨呀眨\n媽媽的心呀魯冰花\n家鄉的水面開蓮花\n娃娃何時回家鄉\n夜夜想起媽媽的話\n閃閃的淚光魯冰花\n\n啊～　啊～　夜夜想起媽媽的話\n閃閃的淚光魯冰花' },
+            { section: '【改詞篇】卷二 用悟', chapter: '13. 琴雖老五音猶在 獨不見悟者的傳奇 ', text: '悟一道人生題　唱一段煙雨遙\n空谷中迴盪足音 恰如悟者的步履\n\n抱一支老月琴　三兩聲不成調\n琴雖老五音猶在\n獨不見悟者的傳奇\n\n落山風向海洋 最後會消逝\n接續你的人生路 再唱一段煙雨遙\n再悟一道人生題' },
+            { section: '【改詞篇】卷二 用悟', chapter: '14. 悟性是一種很玄的東西  ', text: '悟性是一種很玄的東西\n如影隨行\n無聲又無息出沒在心裡　\n轉眼又消失的無蹤影\n\n我無力抗拒 特別是夜裡\n喔.. 彷彿有某種磁吸\n我就站在原地 又醍醐灌頂 　\n我想 大聲的告訴你\n\n願意為你　我願意為你\n我願意為你　傳達你心意\n就算多一秒　停留在你慈懷裡\n請譲我就地歸依\n願意為你　我願意為你\n我願意為你　傳達你心意\n就算多一秒　停留在你慈懷裡　\n我知道你是一' },
+            { section: '【改詞篇】卷二 用悟', chapter: '15. 哪天 想到歸初 從未晚', text: '斜陽無限 也珍惜一夕間漂亮\n隨雲霞漸散 天邊的光彩去復還\n遲遲年月 哪怕這一生的變幻\n如浮雲聚散 不改這紅日的容顏\n\n漫長路 不觉光陰退減\n欢欣自娛總相為伴\n那個優雅的風采 是我本來\n曾遇上幾多風雨翻\n編織我交錯夢幻\n\n但我有初心溫暖\n伴我走過患難\n奔波中 心不灰意淡\n哪怕路上波折再一彎\n哪天 想到歸初 從未晚' },
+            { section: '【改詞篇】卷二 用悟', chapter: '16. 回巢的鳯凰 誰人都可以 ', text: '今生我 無數的風影捲浪\n都作碎浪點點撲岸 向遠方\n風雨裡追趕\n霧裡分不清影蹤\n碎浪拍岸 弄潮聲\n可會變（潮浪在變）\n\n 多少次迎著海風與潮水\n從沒有發現大海的深廣\n一剎那恍惚\n若有所思的感覺\n不知不覺已領悟\n海波浪（海懷抱浪）\n\n原來我這一生 可悲不知是鳯凰\n能飛不飛 都是自己在耽誤 喔...…\n回巢的鳯凰 誰人都可以\n快快回到那山中做大王…喔耶\n\n 鳯凰鳴叫天高\n永遠高唱我歌\n傳遍千里' },
+            { section: '【改詞篇】卷二 用悟', chapter: '17.  沒路去 自有天意', text: '蟬鳴七日 還是未盡興\n禪修數載 無邊也無盡\n抱圓守缺 不迎也不拒\n不好也不壞\n沒有缺 又何來圓\n沒有得 哪有失\n手中無劍 心中無塵 才是我胸懷\n隨緣而去 乘風而來 才是我胸懷\n\n 狂風暴雨 不合我姿態\n海水悠悠 才是我本來\n空中泡影 不問也不懼\n不急也不徐\n沒路去 自有天意\n沒來去 嘸代誌\n如是我聞 一曲破封 才是我本該\n半路偶遇 一雷驚醒 才是我本該' },
+            { section: '【改詞篇】卷二 用悟', chapter: '18. 不為誰 每天的月亮 本就會有變化', text: '每一次 跌倒 腳已疼的不得了\n每一次 就算很受傷 也不閃淚光\n沒發現 我一直有個 添亂的自心\n沒幫忙 還補踹一腳\n\n 時常想 月亮又被烏雲遮一半\n不為誰 每天的月亮 本就會有變化\n沒發現 我一直有個 添亂的自心\n沒事會 自找麻煩\n\n我終於 明白 添亂自心的存在\n想除去卻是 想除除不盡\n\n我終於 學會 添亂自心不可怕\n不去較真 讓它輕輕過去吧' },
+            { section: '【改詞篇】卷二 用悟', chapter: '19. 哭笑過  是生命該有溫度', text: '藍田日暖玉生煙\n春城何處不飛花\n落花水面皆文章\n採菊不必東蘺下\n\n海市蜃樓何人掌\n七彩虹橋誰能上\n即然心知是幻影\n又有何必問究竟\n\n一枯榮  只是應時應緣 離離原上草  \n又有何來生滅 一沙鷗 飄飄何有所似\n渺渺 蒼海之一粟\n\n偶有天狗來戲月\n吞不下肚又吐還\n烏雲不為遮月來\n弦月只為成就圓\n\n畫龍點睛成活物\n飛向雲深不知處\n龍成過客頭不回\n自有去處不復見\n\n哭笑過  是生命該有溫度\n心不帶重量  想完就該拋掉\n風吹月\n來無影 去也無蹤\n月本清涼 風自吹' },
+            { section: '【改詞篇】卷二 用悟', chapter: '20. 哪來 界線不界限 只要悟一點就透了 ', text: '心靈渴了 你有你的獨特\n心靈渴了 讓我一口乾了\n心靈渴了 脫掉身上的殼\n(一口乾了) 陪我跳進心河\n\n快樂不快樂 無關 風格不風格\n管他 明天不明天 把現在活好就對了\n獨特不獨特 無關 資格不資格\n哪來 界線不界限 只要悟一點就透了\n\n 懶得想的通通累格\n當做說 bye-bye 的過客\n泡泡再多 又礙到了誰?\n每條神經都被拉扯\n早就知道不是真的\n心裡那些垃圾 隨時想撤就撤' },
+            { section: '【改詞篇】卷二 用悟', chapter: '21. 望你發慈悲啊 不通乎活嘸哉', text: '天頂的月娘啊 你干有在看\n看我的心肝啊 為何愛作怪\n天頂的佛祖啊 我輕輕叫一聲\n望你會慈悲啊 不通乎活嘸哉\n\n是不是頂世人 欠你的心沒還\n這世人要用領悟拿來還\n你的心那麼清 你的愛在眼前\n這世間有誰人親像我這 慶幸\n\n一瞑一瞑想牽絲 浮浮沉沉放不離\n一次一次回頭看 人生那會這虛華\n\n天頂的月娘啊 你干有在看\n看我的心肝啊 為何愛變卦\n天頂的佛祖啊 我輕輕叫一聲\n望你發慈悲啊 不通乎活嘸哉' },
+            { section: '【改詞篇】卷二 用悟', chapter: '22. 是悲是喜 終將都變成往事', text: '如果想哭我自己會找地方\n你不必擔心我會自己走不出\n走在街上到處是 有情的人\n我想誰都不要 遇到相同的事\n\n人生在世總有些 無奈的事\n人都是這樣 終會走到這一步\n誰叫老天永遠比我們清楚\n生命它何時該收何時該放\n\n 你走吧　我不哭　無論多痛苦\n你走吧　我不哭　不想你辛苦\n\n 明天一個人的我依然會微笑\n因為早明白 人是怎樣一回事\n人間的輪迴總是一次又一次\n是悲是喜終將都變成往事\n\n明天一個人的我依然會微笑\n那怕已沒有人能夠 記得你名字\n還有我不會忘掉你的名字\n只為感念你曾有過的付出' },
+            { section: '【改詞篇】卷二 用悟', chapter: '23.  當下的一切 才是真幸福', text: '風是風 虎是虎 又何來作畫風從虎\n也別錯把 沉默當羔羊\n整夜的狂嚎亦非狼\n説歲月靜好 不足信\n雷雨過後才 天日寧\n棉花球 踩不扁不碎\n別添亂 自己起毛珠\n\n 要記得 在這世上還有水\n它可以不復起\n悔過後 就快去 把它 統統丟水裡\n天下本來就無事\n當下的一切 才是真幸福\n\n我經常 會錯把\n人生白雲 當做一顆樹\n地球不僅僅是圓的 它還會自己轉\n世界瞬息萬變的\n再也摸不到 上一秒溫度' },
+
+            // ================= 【改詞篇】卷三 問心 =================
+            { section: '【改詞篇】卷三 問心', chapter: '1. 或許心從來也不曾遠離', text: '冬天到海邊來看你 \n誰在海邊哭泣\n冬天到海邊來看你 夢是唯一行李\n輕輕回來不吵醒夢𥚃\n或許心從來也不曾遠離\n如果相逢勝過千言萬語\n沒有人比心更懂你\n\n天還是天喔雨還是雨 只是多了一點隨性\n我還是我喔你還是你 只是少了一些習性\n\n冬天到海邊來看雨 誰在海邊哭泣\n冬天到海邊來看雨 夢是唯一行李\n海邊冷清心卻是擁擠\n每一個角落都有緣影\n如果相逢也不必逃避\n這一切終將擦肩而去\n\n天還是天喔雨還是雨 只是多了一點清醒\n我還是我喔你還是你 只是少了一些莫明' },
+            { section: '【改詞篇】卷三 問心', chapter: '2. 也許有一天我也能把心找回', text: '灰色的天 誰的臉 愛過也哭過笑過痛過都是人生難免\n誰的領悟 破界限 原來這第一次明白 竟然會是這種感覺\n\n總以為 我是個真實存在\n說沒有我 就是相信不了\n就要 我就是什麼都想要\n那天 清醒的那一秒 夢突然就醒了\nThe day you went away\n喧鬧的街 沒驚擾的一夜 這世界都靜了\nThe day you went away\n\n看著自己 走過街 腳上還穿著去年夏天買的破舊涼鞋\n炙熱的天 太耀眼 這世界從來也沒有因為誰 而有過改變\n總以為 我是個真實存在\n說沒有我 怎麼也接受不了\n就要 我還是什麼都想要\n那天 清醒的那一秒 夢突然就醒了\nThe day you went away\n喧鬧的街 沒驚擾的一夜 這世界都靜了\nThe day you went away\n\n有一天 也許我也能把心找回\n再一次想起來 不知該哭還該笑\n第一次發現 活在當下的美好\n卻像夢境一樣 什麼也得不到\n跟隨心的明了 每分每秒 就好\n（跟隨著心的明了 直到停止呼吸心跳 就好）' },
+            { section: '【改詞篇】卷三 問心', chapter: '3. 找找那個失落的心', text: '我用自己的方式\n唱歌與你聽\n不知你是否 能聽出箇中涵義\n我用這樣的傻勁\n埋首歌詞裡\n你是否能為我的作品\n激起漣漪\n\n喔 音樂緩緩響起\n聽聽 心裡的聲音\n喔 搖擺夢的旋律\n找找 那個 失落的心\n\n那怕你我最後的歸依\n一個向東 一個向西\n那怕你我理解的距離\n一個在天 一個在地\n那怕你我投射的眼睛\n一個有心 一個無意\n那怕你我蕭瑟的背影\n身形有異 心本無異' },
+            { section: '【改詞篇】卷三 問心', chapter: '4. 長長的大街 有個人在找心在哪邊', text: '長長的大街 走在街上面\n有個人 在找心在哪邊\n沒有發現 心就在當下的每一個𣊬間\n\n關不掉的想念 戒不掉的香煙\n有個人 在找心在哪邊\n莫忘了 那明言\n心是離不開 每一個當下的 覺知相念\n\n滑落一粒水珠 清澈的如露如電\n有多少人 能夠看見 它完整呈現\n每一個角落時間\n\n擁抱著難哄的夢 不停的變換眼前\n但願在今生能夠 來做個了結\n在寧靜的夜 烏雲不會再遮月' },
+            { section: '【改詞篇】卷三 問心', chapter: '5. 最後在我們的故事裡 心被遺忘', text: '過去的事 我已不再擁有\n許多故事 有當真的理由\n這一次 我不放手\n等不到天長地久\n錯過的人 是否可以回首\n\n拜佛的心 沒有任何請求\n許多故事 有當真的理由\n這一次 就算有求\n等不到天長地久\n走過的路 再也不能停留\n\n一千個當真的理由\n當真的理由\n一千個當真的理由\n當真的理由\n最後真相在人生字典裡慢慢陳舊\n\n一千個當真的理由\n當真的理由\n一千個當真的理由\n當真的理由\n最後在我們的故事裡心被遺忘' },
+            { section: '【改詞篇】卷三 問心', chapter: '6. 好的一顆心啊， 怎麼會慢慢變壞？', text: '你是該追求一個明白，還是要繼續惶惶不安\n夏秋冬默默走來，沒有人去管花謝花開\n無法肯定的事，左右搖擺\n只好把痛苦，往深心裡塞。\n\n你是該找回你的本來，難道這不是理所應該\n一個人靜靜發呆，每個人都有不同無奈\n好好的一顆心啊，\n怎麼會慢慢變壞？\n\n冷冷的冰雨在臉上胡亂的拍，暖暖的眼淚跟寒雨混成一塊\n眼前的色彩忽然被掩蓋，風和影子無情在身邊徘徊\n你就像一個活棋子，把自己出賣\n你的心彷彿，被遺忘，任命運主宰\n懸崖上的苔，誰又能明白\n還是繼續接受這命運安排\n回不到本來。' },
+            { section: '【改詞篇】卷三 問心', chapter: '7. 總向外求 再也喚不回心的自由', text: '想說卻還沒說的 還很多 攢著是因為想改寫成歌\n讓人輕輕地唱著 淡淡地記著…\n就算能懂一首（一人能懂）也值了\n說不定每首歌 涓滴意念 僥倖能匯成河\n然後在月光見證下  望著大河彎彎 終於開悟了\n\n嘻皮笑臉 面對人生的難\n就像是一位老和尚 要我來改歌\n想你明白 只有心才能還給你自由\n多少次我們無醉不歡 \n慨嘆人生太短 卻未認真想過\n是誰為何要來到 這個人世間\n\n也許我們從未成熟  在還沒曉得 就已經老了\n不知現在活著的是 生來入局的 棋一顆\n因為不安而頻頻回首 無知地索求 動不動就得咎\n\n不知疲倦地翻越 每一座山丘 越過山丘 才發現白了頭\n喋喋不休 時不我予的哀愁 還未如願見著不朽\n就把自己先搞丟\n\n越過山丘 才發現前頭還有一座\n總向外求 再也喚不回心的溫柔\n為何記不得 上一次 是誰給的感動 在什麼時候\n\n越過山丘 才發現後頭也有一座\n總向外求 再也喚不回心的自由\n為何記不得 上一次\n來自心裡的聲音 在什麼時候' },
+            { section: '【改詞篇】卷三 問心', chapter: '8. 風雨千年路  不識心何物?', text: '秦關月 楚天雲\n無處不是心緣影\n紫塞三春猶飛雪\n嶺南四季花似錦\n\n九曲黃河怒淘湧\n長江三峽一舟輕\n更有那桂林山水\n恰似人間仙境\n\n敦煌月泉外\n沙漠起駝鈴\n風雨千年路\n不識心何物\n\n秦關月 楚天雲\n無處不是空花影\n無處不是心緣影' },
+            { section: '【改詞篇】卷三 問心', chapter: '9. 想找找不到 想甩甩不掉  月在心裡面', text: '大道也無言 清靜是無為\n心知無界限 哪裡有拱門\n我欲乘風尋月 只是鏡花水月\n想找找不到 想甩甩不掉\n月在心裡面\n\n輕羽飛 任風吹… 盡隨緣\n不應有執 何必常想能夠飛久遠\n\n人有悲歡離合 月有陰晴圓缺\n此事古難全\n但願人長久\n也只是個但願' },
+            { section: '【改詞篇】卷三 問心', chapter: '10. 心是  迷迷糊糊天地初開的時候  就已經盛放的玫瑰', text: '一個人 來 一人走 一人受\n怎麼才能跳脫棋子傀儡\n心是 一種只能悟不能說的滋味\n試過以後不醉不歸\n等到容顏憔悴 它卻依然如此完美\n等到什麼時候 我們才能夠體會\n\n得是 一朵六月天飄下來的雪花\n還沒結果已經枯萎\n失是 一滴擦不乾燒不完的眼淚\n還沒凝固已經成灰\n等到悟絲吐盡 心才出現那一回\n等到那一回 它就陪你雙宿雙飛\n\n有誰懂得箇中滋味\n心是\n迷迷糊糊天地初開的時候\n就已經盛放的玫瑰\n悟是\n踏破紅塵望穿秋水只因為\n悟過的人不說後悔\n我是\n一生一世一次一次的輪迴\n不管在東南和西北\n風是\n一段一段一絲一絲的是非\n教有執的人 再不能夠說再會' },
+            { section: '【改詞篇】卷三 問心', chapter: '11. 心是一道光 如此美妙 ', text: '天山有雪蓮 在喜馬拉雅的山巔\n誰的臉 出現海角的天邊\n忽然的瞬間 在那遙遠的地點\n我看見 金色幸福的光點\n靈魂在召喚 唱著古老\n陌生熟悉的歌謠\n天空在微笑 我的世界 繽紛閃耀\n\n心是一道光 如此美妙\n指引我們想要的未來\n一曲我破封 一雷驚醒我\n趕快去找不思議的悟\n心是一道光 如此美妙\n照亮我們勇氣的未來\n自添心一葉 成就幸運草\n心知的幸運 從此不用找\n\n紅橙黃綠藍 五彩的大祕寶\n若不心頭找 又該往哪去找\n紅橙黃綠藍 美麗的大祕寶\n如來在心中 何處沒有神掌' },
+            { section: '【改詞篇】卷三 問心', chapter: '12. 心若是有靈犀的方向 為何會害怕潮汐來相伴', text: '每顆心上某一個地方\n總有個悸動揮不散\n每個深夜某一個地方\n總有著最深的思量\n\n這世上萬千的變幻\n海和浪是如何能夠分對半\n心若是有靈犀的方向\n為何會害怕潮汐來相伴\n\n城裡的月光把心照亮\n請溫暖他心房\n看透了人間聚散\n就更該 多點快樂片段\n\n城裡的月光把夢照亮\n請守護他身旁\n若有一天夢醒了\n讓幸福撒滿整個夜晚' },
+            { section: '【改詞篇】卷三 問心', chapter: '13. 我會痴痴的藏你心裡面', text: '你是天涯漂泊的人\n我是千古同一個月\n\n我會痴痴的藏你心裡面\n等你發現 等你回頭 日日年年\n等你發現 等你回頭 歲歲年年\n\n八千里路雲和月' },
+            { section: '【改詞篇】卷三 問心', chapter: '14. 心是我所有快樂源頭', text: '留心腳步 看得清楚\n有很多可疑的因素\n唬弄你 讓你糊塗\n考驗你 悟的程度\n\n高樓電梯 霓虹深處\n舞動在人群很舒服\n蠱惑你 讓你迷路\n忘記了 回家的路\n\n喔 心是我的花朵\n就算我身邊 很多小石頭\n喔 心是我的花朵\n發出一道光 照亮眼前路\n喔 心是我的花朵\n自有悟者出 聰明不糊塗\n喔 心是我的花朵\n花若是盛開 蝶舞也翩翩\n\n不管人間充滿多少困惑\n都不該放棄去尋找\n那原本該是的我\n心是我所有快樂源頭\n一直等待著我們 回到 那開心樂園' },
+            { section: '【改詞篇】卷三 問心', chapter: '15. 我的心已不再流浪', text: '我又回到熟悉的地方\n一個本來寂靜的地方\n讓北風從我身上掠過\n無數的泡泡 也隨風飛翔\n\n我又聽到熟悉的音響\n那是 泡泡破滅的聲響\n辟啵啵 不斷在天空中迴響\n數不清 耳邊吹又響\n\n千里冷 月伴星光\n但我有 歌聲高亢\n啊...(啊...我的心已不再流浪)' },
+            { section: '【改詞篇】卷三 問心', chapter: '16. 何從何去　去覓我心中方向', text: '人生路　夢如路長\n讓那風霜　風霜留面上\n紅塵裡 美夢有幾多方向\n找痴痴 夢幻的鏡相\n路隨人茫茫\n\n人生是　夢的延長\n夢里依稀　依稀中有淚光\n何從何去　去覓我心中方向\n風仿佛在夢中輕嘆\n路和人茫茫\n\n人生路　快樂半百郎\n在那崎嶇　崎嶇中賞月光\n泥塵裡　悲樂有多少方向\n如露如電 如夢如影\n心不再茫茫' },
+            { section: '【改詞篇】卷三 問心', chapter: '17. 如露如電 那是世間  不變心朗月', text: '依稀今月似曾見\n心內波瀾現\n照看著我展笑顏\n相伴到天邊\n\n 牧草四方 沙漠蒼茫\n那懼風霜撲面\n射雕引弓 幻夢泡影\n笑悟今生 已盡興\n\n 天蒼蒼 野茫茫\n萬般變化\n如露如電 那是世間\n不變心朗月' }
+        ];
+
+        let currentIndex = 0;
+        let currentSection = bookDatabase[0].section;
+        let isFlipping = false;
+        
+        let manualZoom = 100;
+        let isAutoMode = true;
+
+        // 將資料庫依據 section 進行分組
+        const groupedDB = bookDatabase.reduce((acc, item, index) => {
+            if (!acc[item.section]) acc[item.section] = [];
+            acc[item.section].push({ ...item, originalIndex: index });
+            return acc;
+        }, {});
+
+        // DOM 元素取得
+        const navTier1 = document.getElementById('nav-tier-1');
+        const navTier2 = document.getElementById('nav-tier-2');
+        const readerContent = document.getElementById('reader-content');
+        const readerContainer = document.getElementById('reader-container');
+        const scrollWrapper = document.getElementById('scroll-wrapper');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+        const zoomSlider = document.getElementById('zoom-slider');
+        const btnZoomIn = document.getElementById('btn-zoom-in');
+        const btnZoomOut = document.getElementById('btn-zoom-out');
+        const btnZoomAuto = document.getElementById('btn-zoom-auto');
+
+        function renderNavTier1() {
+            navTier1.innerHTML = `
+                <div class="text-amber-500/80 text-xs font-bold tracking-widest mr-2 whitespace-nowrap flex-shrink-0 flex items-center">
+                    <i class="fa-solid fa-book w-4 h-4 mr-1.5"></i> 選擇大卷
+                </div>
+            `;
+            Object.keys(groupedDB).forEach(section => {
+                const btn = document.createElement('button');
+                const isActive = currentSection === section;
+                
+                btn.className = `px-4 sm:px-5 py-2 rounded-full whitespace-nowrap text-xs sm:text-sm font-bold transition-all duration-300 flex-shrink-0 flex items-center gap-2 
+                    ${isActive 
+                        ? 'bg-amber-500/15 text-amber-400 border border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.15)]' 
+                        : 'bg-slate-800/40 text-slate-400 border border-slate-700/50 hover:bg-slate-700/80 hover:text-slate-200'}`;
+                
+                const icon = section.includes('改詞') ? '<i class="fa-solid fa-music text-xs"></i> ' : '';
+                btn.innerHTML = `${icon}${section}`;
+                
+                btn.onclick = () => {
+                    if (currentSection === section) return;
+                    currentSection = section;
+                    const firstChapterIndex = groupedDB[section][0].originalIndex;
+                    goToPage(firstChapterIndex);
+                };
+                navTier1.appendChild(btn);
+            });
+        }
+
+        function renderNavTier2() {
+            navTier2.innerHTML = `
+                <div class="text-slate-500 text-xs font-bold tracking-widest mr-3 whitespace-nowrap flex-shrink-0 flex items-center">
+                    <i class="fa-solid fa-lightbulb w-3.5 h-3.5 mr-1"></i> 章節
+                </div>
+            `;
+            
+            const chapters = groupedDB[currentSection];
+            chapters.forEach(chapter => {
+                const btn = document.createElement('button');
+                const isActive = currentIndex === chapter.originalIndex;
+                
+                btn.className = `px-3 sm:px-4 py-1.5 rounded-full whitespace-nowrap text-xs tracking-wider transition-all duration-300 flex-shrink-0 
+                    ${isActive 
+                        ? 'bg-slate-700 text-slate-100 border border-slate-500 shadow-sm' 
+                        : 'bg-transparent text-slate-500 border border-transparent hover:text-slate-300 hover:bg-slate-800/60'}`;
+                btn.innerText = chapter.chapter;
+                
+                btn.onclick = () => goToPage(chapter.originalIndex);
+                navTier2.appendChild(btn);
+                
+                if (isActive) {
+                    setTimeout(() => btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }), 100);
+                }
+            });
+        }
+
+        function applyScale(scaleValue) {
+            readerContent.style.transform = `scale(${scaleValue})`;
+
+            // 當放大比例 > 1 時，解除垂直置中，允許使用者由上往下平順滾動
+            if (scaleValue > 1) {
+                scrollWrapper.classList.remove('justify-center');
+                scrollWrapper.classList.add('justify-start');
+            } else {
+                scrollWrapper.classList.remove('justify-start');
+                scrollWrapper.classList.add('justify-center');
+            }
+        }
+
+        function updateScale() {
+            if (!isAutoMode) {
+                applyScale(manualZoom / 100);
+                return;
+            }
+
+            const textBody = document.getElementById('text-body');
+            
+            // 重置為單欄與原始大小以進行測量
+            readerContent.style.transform = 'scale(1)';
+            if (textBody) {
+                textBody.style.columnCount = '1';
+                textBody.style.columnGap = '0';
+                textBody.style.maxWidth = '900px'; 
+                textBody.classList.remove('text-left');
+                textBody.classList.add('text-center');
+            }
+            
+            void readerContent.offsetWidth; // 強制重繪
+
+            requestAnimationFrame(() => {
+                const container = readerContainer; 
+                const cWidth = container.clientWidth - 40; 
+                const cHeight = container.clientHeight - 80; 
+                
+                let tWidth = readerContent.scrollWidth;
+                let tHeight = readerContent.scrollHeight;
+                let newScale = 1;
+
+                if (tWidth > cWidth || tHeight > cHeight) {
+                    const ratioW = cWidth / tWidth;
+                    const ratioH = cHeight / tHeight;
+                    newScale = Math.min(ratioW, ratioH) * 0.98; 
+                }
+
+                // 當字太多（縮放比例太小）時，觸發雜誌雙欄排版模式
+                if (newScale < 0.75 && textBody) { 
+                    textBody.style.columnCount = '2';
+                    textBody.style.columnGap = '4rem'; 
+                    textBody.style.maxWidth = '100%'; // 解放寬度限制
+                    textBody.classList.remove('text-center');
+                    textBody.classList.add('text-left'); 
+                    
+                    tWidth = readerContent.scrollWidth;
+                    tHeight = readerContent.scrollHeight;
+                    
+                    const newRatioW = cWidth / tWidth;
+                    const newRatioH = cHeight / tHeight;
+                    newScale = Math.min(newRatioW, newRatioH) * 0.98;
+                }
+
+                applyScale(newScale);
+                zoomSlider.value = Math.round(newScale * 100);
+            });
+        }
+
+        zoomSlider.addEventListener('input', (e) => {
+            isAutoMode = false;
+            manualZoom = e.target.value;
+            applyScale(manualZoom / 100);
+            btnZoomAuto.classList.replace('text-amber-400', 'text-slate-400');
+        });
+
+        btnZoomIn.addEventListener('click', () => {
+            isAutoMode = false;
+            manualZoom = Math.min(parseInt(zoomSlider.value) + 10, parseInt(zoomSlider.max));
+            zoomSlider.value = manualZoom;
+            applyScale(manualZoom / 100);
+            btnZoomAuto.classList.replace('text-amber-400', 'text-slate-400');
+        });
+
+        btnZoomOut.addEventListener('click', () => {
+            isAutoMode = false;
+            manualZoom = Math.max(parseInt(zoomSlider.value) - 10, parseInt(zoomSlider.min));
+            zoomSlider.value = manualZoom;
+            applyScale(manualZoom / 100);
+            btnZoomAuto.classList.replace('text-amber-400', 'text-slate-400');
+        });
+
+        btnZoomAuto.addEventListener('click', () => {
+            isAutoMode = true;
+            btnZoomAuto.classList.replace('text-slate-400', 'text-amber-400');
+            updateScale();
+        });
+
+        function renderContent() {
+            const data = bookDatabase[currentIndex];
+            
+            // 段落切分與 break-inside-avoid 防腰斬處理
+            const stanzas = data.text.replace(/\s{2,}/g, '\n\n').split('\n\n');
+            const stanzasHtml = stanzas.map(stanza => 
+                `<div class="break-inside-avoid mb-6 sm:mb-8">${stanza}</div>`
+            ).join('');
+            
+            // 分層排版：標題置中 + 分隔線，內文動態分欄
+            readerContent.innerHTML = 
+                `<div class="w-full text-center mb-6 sm:mb-10 pb-4 sm:pb-6 border-b border-white/10">
+                    <div class="text-amber-400 font-bold tracking-[0.2em] mb-2 sm:mb-3">${data.section}</div>
+                    <div class="text-amber-300 font-bold tracking-[0.25em] text-[0.9em]">${data.chapter}</div>
+                </div>` +
+                `<div id="text-body" class="w-full mx-auto transition-all duration-500">${stanzasHtml}</div>`;
+
+            updateScale();
+            
+            btnPrev.disabled = currentIndex === 0;
+            btnNext.disabled = currentIndex === bookDatabase.length - 1;
+            
+            // 翻頁時確保回到頂部
+            readerContainer.scrollTop = 0;
+        }
+
+        function goToPage(index) {
+            if (index === currentIndex || isFlipping) return;
+            isFlipping = true;
+            
+            readerContainer.classList.add('opacity-0', 'blur-sm', 'scale-95');
+
+            setTimeout(() => {
+                currentIndex = index;
+                currentSection = bookDatabase[index].section;
+                
+                renderNavTier1();
+                renderNavTier2();
+                renderContent();
+
+                readerContainer.classList.remove('opacity-0', 'blur-sm', 'scale-95');
+                isFlipping = false;
+            }, 300);
+        }
+
+        btnPrev.addEventListener('click', () => {
+            if (currentIndex > 0) goToPage(currentIndex - 1);
+        });
+
+        btnNext.addEventListener('click', () => {
+            if (currentIndex < bookDatabase.length - 1) goToPage(currentIndex + 1);
+        });
+
+        window.addEventListener('resize', updateScale);
+
+        // 啟動應用程式
+        renderNavTier1();
+        renderNavTier2();
+        renderContent();
+
+    </script>
+</body>
+</html>
